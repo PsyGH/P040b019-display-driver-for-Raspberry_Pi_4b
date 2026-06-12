@@ -48,6 +48,8 @@
 
 				touchscreen-size-x = <480>;
 				touchscreen-size-y = <800>;
+				touchscreen-swapped-x-y;
+				touchscreen-inverted-x;
 			};
 		};
 	};

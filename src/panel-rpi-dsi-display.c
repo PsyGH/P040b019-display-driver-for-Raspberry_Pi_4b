@@ -14,9 +14,82 @@
 #include <drm/drm_panel.h>
 #include <linux/gpio/consumer.h>
 #include <linux/module.h>
-#include <video/mipi_display.h>
+#include <linux/delay.h>
 #include <linux/of.h>
 #include <linux/backlight.h>
+#include <linux/version.h>
+#include <video/mipi_display.h>
+
+/* Kernel version compatibility shims */
+#ifndef BACKLIGHT_POWER_OFF
+#define BACKLIGHT_POWER_OFF 0
+#endif
+
+/* ===== Kernel version compatibility shims ===== */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
+/*
+ * mipi_dsi_multi_context and _multi() helpers were added in 6.4.
+ * Provide fallbacks for older kernels.
+ */
+struct mipi_dsi_multi_context {
+	struct mipi_dsi_device *dsi;
+	int accum_err;
+};
+
+#define mipi_dsi_dcs_write_seq_multi(ctx, cmd, seq...) \
+({ \
+	const u8 d[] = { cmd, seq }; \
+	struct mipi_dsi_multi_context *__ctx = (ctx); \
+	int __ret = mipi_dsi_dcs_write_buffer(__ctx->dsi, d, ARRAY_SIZE(d)); \
+	if (__ret < 0) \
+		__ctx->accum_err = __ret; \
+})
+
+static inline void mipi_dsi_dcs_soft_reset_multi(struct mipi_dsi_multi_context *ctx)
+{
+	int ret = mipi_dsi_dcs_soft_reset(ctx->dsi);
+	if (ret < 0)
+		ctx->accum_err = ret;
+}
+
+static inline void mipi_dsi_dcs_exit_sleep_mode_multi(struct mipi_dsi_multi_context *ctx)
+{
+	int ret = mipi_dsi_dcs_exit_sleep_mode(ctx->dsi);
+	if (ret < 0)
+		ctx->accum_err = ret;
+}
+
+static inline void mipi_dsi_dcs_enter_sleep_mode_multi(struct mipi_dsi_multi_context *ctx)
+{
+	int ret = mipi_dsi_dcs_enter_sleep_mode(ctx->dsi);
+	if (ret < 0)
+		ctx->accum_err = ret;
+}
+
+static inline void mipi_dsi_dcs_set_display_on_multi(struct mipi_dsi_multi_context *ctx)
+{
+	int ret = mipi_dsi_dcs_set_display_on(ctx->dsi);
+	if (ret < 0)
+		ctx->accum_err = ret;
+}
+
+static inline void mipi_dsi_dcs_set_display_off_multi(struct mipi_dsi_multi_context *ctx)
+{
+	int ret = mipi_dsi_dcs_set_display_off(ctx->dsi);
+	if (ret < 0)
+		ctx->accum_err = ret;
+}
+
+static inline void mipi_dsi_dcs_set_tear_on_multi(struct mipi_dsi_multi_context *ctx,
+						   enum mipi_dsi_dcs_tear_mode mode)
+{
+	int ret = mipi_dsi_dcs_set_tear_on(ctx->dsi, mode);
+	if (ret < 0)
+		ctx->accum_err = ret;
+}
+#endif /* < 6.4 */
+
 
 struct power_on_timing {
 	unsigned long post_reset;
@@ -212,6 +285,7 @@ static int rpi_dsi_display_prepare(struct drm_panel *panel)
 {
 	struct rpi_dsi_display *rpi_dsi_display = to_rpi_dsi_display(panel);
 	struct mipi_dsi_multi_context ctx = { .dsi = rpi_dsi_display->dsi };
+	int ret;
 
 	dev_info(panel->dev, "panel prepare: starting\n");
 
@@ -243,7 +317,7 @@ static int rpi_dsi_display_prepare(struct drm_panel *panel)
 
 	if (rpi_dsi_display->desc->init_sequence) {
 		dev_info(panel->dev, "panel prepare: init sequence\n");
-		int ret = rpi_dsi_display->desc->init_sequence(
+		ret = rpi_dsi_display->desc->init_sequence(
 				rpi_dsi_display->dsi);
 		if (ret) {
 			dev_err(panel->dev,
@@ -322,16 +396,24 @@ static int rpi_dsi_display_get_modes(struct drm_panel *panel,
 	connector->display_info.width_mm = desc_mode->width_mm;
 	connector->display_info.height_mm = desc_mode->height_mm;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
 	drm_connector_set_orientation_from_panel(connector, panel);
+#else
+	drm_connector_set_panel_orientation_with_quirk(connector,
+			rpi_dsi_display->orientation, desc_mode->width_mm,
+			desc_mode->height_mm);
+#endif
 	return 1;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
 static enum drm_panel_orientation
 rpi_dsi_display_get_orientation(struct drm_panel *panel)
 {
 	struct rpi_dsi_display *rpi_dsi_display = to_rpi_dsi_display(panel);
 	return rpi_dsi_display->orientation;
 }
+#endif
 
 /* ===== DCS backlight (fallback when no DT backlight) ===== */
 
@@ -355,7 +437,9 @@ static const struct drm_panel_funcs rpi_dsi_display_funcs = {
 	.prepare = rpi_dsi_display_prepare,
 	.enable = rpi_dsi_display_enable,
 	.get_modes = rpi_dsi_display_get_modes,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
 	.get_orientation = rpi_dsi_display_get_orientation,
+#endif
 };
 
 /* ===== Display modes and descriptors ===== */
@@ -490,14 +574,20 @@ static int rpi_dsi_display_probe(struct mipi_dsi_device *dsi)
 	if (!rpi_dsi_display)
 		return -ENOMEM;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
 	desc = of_device_get_match_data(&dsi->dev);
+#else
+	desc = device_get_match_data(&dsi->dev);
+#endif
 	dev_info(&dsi->dev, "panel desc found, lanes=%d, mode=%dx%d\n",
 		 desc->lanes, desc->mode->hdisplay, desc->mode->vdisplay);
 	dsi->mode_flags = desc->flags;
 	dsi->format = desc->format;
 	dsi->lanes = desc->lanes;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
 	rpi_dsi_display->panel.prepare_prev_first = true;
+#endif
 	rpi_dsi_display->reset =
 		devm_gpiod_get_optional(&dsi->dev, "reset", GPIOD_OUT_HIGH);
 	if (IS_ERR(rpi_dsi_display->reset)) {
@@ -505,6 +595,7 @@ static int rpi_dsi_display_probe(struct mipi_dsi_device *dsi)
 		return PTR_ERR(rpi_dsi_display->reset);
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
 	ret = of_drm_get_panel_orientation(dsi->dev.of_node,
 					   &rpi_dsi_display->orientation);
 	if (ret < 0) {
@@ -513,6 +604,35 @@ static int rpi_dsi_display_probe(struct mipi_dsi_device *dsi)
 		rpi_dsi_display->orientation =
 			DRM_MODE_PANEL_ORIENTATION_NORMAL;
 	}
+#else
+	{
+		u32 rot;
+		ret = of_property_read_u32(dsi->dev.of_node, "rotation", &rot);
+		if (ret == 0) {
+			switch (rot) {
+			case 90:
+				rpi_dsi_display->orientation =
+					DRM_MODE_PANEL_ORIENTATION_LEFT_UP;
+				break;
+			case 180:
+				rpi_dsi_display->orientation =
+					DRM_MODE_PANEL_ORIENTATION_BOTTOM_UP;
+				break;
+			case 270:
+				rpi_dsi_display->orientation =
+					DRM_MODE_PANEL_ORIENTATION_RIGHT_UP;
+				break;
+			default:
+				rpi_dsi_display->orientation =
+					DRM_MODE_PANEL_ORIENTATION_NORMAL;
+				break;
+			}
+		} else {
+			rpi_dsi_display->orientation =
+				DRM_MODE_PANEL_ORIENTATION_NORMAL;
+		}
+	}
+#endif
 
 	drm_panel_init(&rpi_dsi_display->panel, &dsi->dev,
 		       &rpi_dsi_display_funcs, DRM_MODE_CONNECTOR_DSI);
@@ -561,12 +681,21 @@ static int rpi_dsi_display_probe(struct mipi_dsi_device *dsi)
 	return 0;
 }
 
-static void rpi_dsi_display_remove(struct mipi_dsi_device *dsi)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
+#define REMOVE_RET int
+#define REMOVE_RETVAL return 0
+#else
+#define REMOVE_RET void
+#define REMOVE_RETVAL
+#endif
+
+static REMOVE_RET rpi_dsi_display_remove(struct mipi_dsi_device *dsi)
 {
 	struct rpi_dsi_display *rpi_dsi_display = mipi_dsi_get_drvdata(dsi);
 
 	mipi_dsi_detach(dsi);
 	drm_panel_remove(&rpi_dsi_display->panel);
+	REMOVE_RETVAL;
 }
 
 static const struct of_device_id rpi_dsi_display_ids[] = {
