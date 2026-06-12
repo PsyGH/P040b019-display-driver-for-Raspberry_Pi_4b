@@ -4,14 +4,14 @@ Portable Linux kernel driver for the **P040B019-MIPI-CTP** 480×800 MIPI DSI pan
 
 ## Hardware
 
-| 参数 | 值 |
+| Parameter | Value |
 |------|-----|
-| 面板 | P040B019 (BOE 4.0" IPS) |
-| 分辨率 | 480×800 |
-| 驱动 IC | Sitronix ST7701P |
-| 接口 | MIPI DSI 2-lane |
-| 触摸 | FT6336U (I2C 0x38, DSI SDA/SCL) |
-| 背光 | PWM (GPIO12/13) |
+| Panel | P040B019 (BOE 4.0" IPS) |
+| Resolution | 480×800 |
+| Driver IC | Sitronix ST7701P |
+| Interface | MIPI DSI 2-lane |
+| Touch | FT6336U (I2C 0x38, DSI SDA/SCL) |
+| Backlight | PWM (GPIO12/13) |
 
 ## Quick Install (Raspberry Pi 4B)
 

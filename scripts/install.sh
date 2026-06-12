@@ -15,28 +15,28 @@ err()   { echo -e "${RED}  ✗${NC} $*"; exit 1; }
 [ "$(id -u)" -eq 0 ] || err "need root — run: sudo ./install.sh"
 
 # ── 1. Build kernel module ──
-info "1/4 编译内核模块"
+info "1/4 Building kernel module"
 if [ ! -d /lib/modules/$(uname -r)/build ]; then
-  info "  安装 kernel headers..."
+  info "  Installing kernel headers..."
   apt-get update -qq && apt-get install -y linux-headers-$(uname -r) build-essential
 fi
 cd "$PROJECT_DIR/src"
 make clean 2>/dev/null || true
-make || err "编译失败，检查内核版本兼容性"
+make || err "Build failed, check kernel version compatibility"
 ok "panel-rpi-dsi-display.ko"
 
 # ── 2. Install module ──
-info "2/4 安装模块"
+info "2/4 Installing module"
 MODDIR=/lib/modules/$(uname -r)/kernel/drivers/gpu/drm/panel
 mkdir -p "$MODDIR"
 cp panel-rpi-dsi-display.ko "$MODDIR/"
 depmod -a
 # Auto-load on boot
 echo "panel-rpi-dsi-display" > /etc/modules-load.d/p040b019.conf
-ok "模块已安装并配置开机自动加载"
+ok "Module installed and configured for auto-load on boot"
 
 # ── 3. Deploy DT overlays ──
-info "3/4 部署设备树"
+info "3/4 Deploying device tree"
 KINC=$(find /lib/modules/$(uname -r)/build/include -maxdepth 0 2>/dev/null || echo "")
 [ -z "$KINC" ] && KINC="/usr/src/linux-headers-$(uname -r)/include"
 cd "$PROJECT_DIR/overlay"
@@ -46,7 +46,7 @@ for name in p040b019-display st7701p-touch; do
   cpp -nostdinc -undef -x assembler-with-cpp -I "$KINC" \
     "${name}.dts" > "/tmp/${name}.dts.preprocessed"
   dtc -@ -I dts -O dtb -o "/tmp/${name}.dtbo" "/tmp/${name}.dts.preprocessed"
-  ok "编译 ${name}.dtbo"
+  ok "Compiled ${name}.dtbo"
 done
 
 # Merge into base DTB
@@ -59,26 +59,26 @@ if [ -f "$FIRMWARE_DIR/$DTB" ]; then
   # Backup original
   if [ ! -f "$FIRMWARE_DIR/${DTB}.orig" ]; then
     cp "$FIRMWARE_DIR/$DTB" "$FIRMWARE_DIR/${DTB}.orig"
-    ok "备份原始 DTB → ${DTB}.orig"
+    ok "Backed up original DTB → ${DTB}.orig"
   fi
   # Merge overlays
   fdtoverlay -i "$FIRMWARE_DIR/${DTB}.orig" -o "$FIRMWARE_DIR/$DTB" \
     /tmp/p040b019-display.dtbo /tmp/st7701p-touch.dtbo
-  ok "DT overlay 已合并到 ${DTB}"
+  ok "DT overlay merged into ${DTB}"
 else
-  info "未找到 ${DTB}, DTBO 已编译到 /tmp/, 请手动合并"
+  info "${DTB} not found, DTBOs compiled to /tmp/ — merge manually"
 fi
 
 # ── 4. Verify ──
-info "4/4 验证"
+info "4/4 Verifying"
 if lsmod | grep -q panel_rpi_dsi_display; then
-  ok "模块已加载"
+  ok "Module loaded"
 else
-  modprobe panel-rpi-dsi-display 2>/dev/null && ok "模块加载成功" || info "模块将在重启后加载"
+  modprobe panel-rpi-dsi-display 2>/dev/null && ok "Module loaded successfully" || info "Module will load after reboot"
 fi
 
 echo ""
-echo -e "${GREEN}安装完成！${NC}"
-echo "  重启使 DTB 生效: sudo reboot"
-echo "  检查屏幕: dmesg | grep rpi_dsi"
-echo "  背光: echo 128 > /sys/class/backlight/backlight/brightness"
+echo -e "${GREEN}Installation complete!${NC}"
+echo "  Reboot to activate DTB: sudo reboot"
+echo "  Check display: dmesg | grep rpi_dsi"
+echo "  Set brightness: echo 128 > /sys/class/backlight/backlight/brightness"
