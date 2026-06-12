@@ -605,8 +605,33 @@ static int rpi_dsi_display_probe(struct mipi_dsi_device *dsi)
 			DRM_MODE_PANEL_ORIENTATION_NORMAL;
 	}
 #else
-	rpi_dsi_display->orientation =
-		DRM_MODE_PANEL_ORIENTATION_NORMAL;
+	{
+		u32 rot;
+		ret = of_property_read_u32(dsi->dev.of_node, "rotation", &rot);
+		if (ret == 0) {
+			switch (rot) {
+			case 90:
+				rpi_dsi_display->orientation =
+					DRM_MODE_PANEL_ORIENTATION_LEFT_UP;
+				break;
+			case 180:
+				rpi_dsi_display->orientation =
+					DRM_MODE_PANEL_ORIENTATION_BOTTOM_UP;
+				break;
+			case 270:
+				rpi_dsi_display->orientation =
+					DRM_MODE_PANEL_ORIENTATION_RIGHT_UP;
+				break;
+			default:
+				rpi_dsi_display->orientation =
+					DRM_MODE_PANEL_ORIENTATION_NORMAL;
+				break;
+			}
+		} else {
+			rpi_dsi_display->orientation =
+				DRM_MODE_PANEL_ORIENTATION_NORMAL;
+		}
+	}
 #endif
 
 	drm_panel_init(&rpi_dsi_display->panel, &dsi->dev,
