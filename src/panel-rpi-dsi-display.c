@@ -285,6 +285,7 @@ static int rpi_dsi_display_prepare(struct drm_panel *panel)
 {
 	struct rpi_dsi_display *rpi_dsi_display = to_rpi_dsi_display(panel);
 	struct mipi_dsi_multi_context ctx = { .dsi = rpi_dsi_display->dsi };
+	int ret;
 
 	dev_info(panel->dev, "panel prepare: starting\n");
 
@@ -316,7 +317,7 @@ static int rpi_dsi_display_prepare(struct drm_panel *panel)
 
 	if (rpi_dsi_display->desc->init_sequence) {
 		dev_info(panel->dev, "panel prepare: init sequence\n");
-		int ret = rpi_dsi_display->desc->init_sequence(
+		ret = rpi_dsi_display->desc->init_sequence(
 				rpi_dsi_display->dsi);
 		if (ret) {
 			dev_err(panel->dev,
@@ -573,7 +574,11 @@ static int rpi_dsi_display_probe(struct mipi_dsi_device *dsi)
 	if (!rpi_dsi_display)
 		return -ENOMEM;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
 	desc = of_device_get_match_data(&dsi->dev);
+#else
+	desc = device_get_match_data(&dsi->dev);
+#endif
 	dev_info(&dsi->dev, "panel desc found, lanes=%d, mode=%dx%d\n",
 		 desc->lanes, desc->mode->hdisplay, desc->mode->vdisplay);
 	dsi->mode_flags = desc->flags;
