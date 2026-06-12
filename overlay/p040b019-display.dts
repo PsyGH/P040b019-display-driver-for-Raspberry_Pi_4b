@@ -21,7 +21,7 @@
 		__overlay__ {
 			p040b019_backlight: backlight {
 				compatible = "pwm-backlight";
-				pwms = <&pwm 1 1000000 0>;  /* PWM ch1 (GPIO13) — 避免与音频冲突 */
+				pwms = <&pwm 1 1000000 0>;  /* PWM ch1 (GPIO13) — avoid conflict with analog audio */
 				/* 256 linear levels, 1kHz for PAM2804 compat */
 				brightness-levels = <
 					8   9  10  11  12  13  14  15
