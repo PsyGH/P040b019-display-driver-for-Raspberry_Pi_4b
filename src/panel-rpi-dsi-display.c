@@ -400,7 +400,7 @@ static int rpi_dsi_display_get_modes(struct drm_panel *panel,
 	drm_connector_set_orientation_from_panel(connector, panel);
 #else
 	drm_connector_set_panel_orientation_with_quirk(connector,
-			DRM_MODE_PANEL_ORIENTATION_NORMAL, desc_mode->width_mm,
+			rpi_dsi_display->orientation, desc_mode->width_mm,
 			desc_mode->height_mm);
 #endif
 	return 1;
@@ -485,18 +485,19 @@ static const struct drm_display_mode tdo_qhd0500d5_mode = {
 static const struct drm_display_mode p040b019_mode = {
 	.clock = 27000,
 
-	.hdisplay = 480,
-	.hsync_start = 480 + 30,	/* hactive + HFP  */
-	.hsync_end = 480 + 30 + 10,	/* + hsync-len */
-	.htotal = 480 + 30 + 10 + 30,	/* + HBP */
+	/* Landscape 800x480 (swapped from panel's native 480x800) */
+	.hdisplay = 800,
+	.hsync_start = 800 + 15,	/* hactive + HFP */
+	.hsync_end = 800 + 15 + 4,	/* + hsync-len */
+	.htotal = 800 + 15 + 4 + 12,	/* + HBP */
 
-	.vdisplay = 800,
-	.vsync_start = 800 + 15,	/* vactive + VFP */
-	.vsync_end = 800 + 15 + 4,	/* + vsync-len */
-	.vtotal = 800 + 15 + 4 + 12,	/* + VBP */
+	.vdisplay = 480,
+	.vsync_start = 480 + 30,	/* vactive + VFP */
+	.vsync_end = 480 + 30 + 10,	/* + vsync-len */
+	.vtotal = 480 + 30 + 10 + 30,	/* + VBP */
 
-	.width_mm = 52,
-	.height_mm = 86,
+	.width_mm = 86,
+	.height_mm = 52,
 
 	.type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED,
 };
