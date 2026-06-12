@@ -3,7 +3,7 @@
  * Device tree overlay for P040B019-MIPI-CTP display (ST7701P)
  *
  * Panel: P040B019, DSI1, 2-lane, 480×800
- * Backlight: DCS command-based (fallback when no pwm_bl driver)
+ * Backlight: GPIO-based (GPIO13 high = on, low = off)
  * Display RESET: GPIO17 (open-drain required!)
  *
  * Note: touch overlay (st7701p-touch) must be loaded separately
@@ -16,6 +16,17 @@
 	compatible = "raspberrypi,4-model-b", "brcm,bcm2711";
 
 	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			p040b019_backlight: backlight {
+				compatible = "gpio-backlight";
+				gpios = <&gpio 13 0>;
+				default-on;
+			};
+		};
+	};
+
+	fragment@1 {
 		target = <&dsi1>;
 		__overlay__ {
 			status = "okay";
@@ -32,6 +43,7 @@
 				compatible = "boe,p040b019";
 				status = "okay";
 				reg = <0>;
+				backlight = <&p040b019_backlight>;
 				reset-gpios = <&gpio 17 3>; /* GPIO_ACTIVE_LOW(1) | GPIO_OPEN_SOURCE(2) */
 				rotation = <90>;
 
