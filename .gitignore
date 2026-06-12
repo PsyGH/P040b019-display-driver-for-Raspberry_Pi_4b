@@ -1,1 +1,26 @@
+# Project-specific
 CLAUDE.md
+
+# Kernel module build artifacts
+src/*.o
+src/*.ko
+src/*.mod.*
+src/Module.symvers
+src/modules.order
+src/.*.cmd
+src/*.symvers
+src/*.order
+
+# Editor / OS
+*~
+.*.sw[po]
+*.swp
+*.swo
+\#*\#
+tags
+cscope.*
+.vscode/
+.idea/
+
+# Temp
+/tmp/
