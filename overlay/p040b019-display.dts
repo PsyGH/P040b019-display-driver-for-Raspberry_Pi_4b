@@ -45,7 +45,7 @@
 				reg = <0>;
 				backlight = <&p040b019_backlight>;
 				reset-gpios = <&gpio 17 3>; /* GPIO_ACTIVE_LOW(1) | GPIO_OPEN_SOURCE(2) */
-				rotation = <0>;
+				rotation = <270>;
 
 				port {
 					p040b019_in: endpoint {

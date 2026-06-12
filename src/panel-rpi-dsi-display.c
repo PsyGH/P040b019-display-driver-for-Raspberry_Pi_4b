@@ -485,19 +485,18 @@ static const struct drm_display_mode tdo_qhd0500d5_mode = {
 static const struct drm_display_mode p040b019_mode = {
 	.clock = 27000,
 
-	/* Landscape 800x480 (swapped from panel's native 480x800) */
-	.hdisplay = 800,
-	.hsync_start = 800 + 15,	/* hactive + HFP */
-	.hsync_end = 800 + 15 + 4,	/* + hsync-len */
-	.htotal = 800 + 15 + 4 + 12,	/* + HBP */
+	.hdisplay = 480,
+	.hsync_start = 480 + 30,	/* hactive + HFP  */
+	.hsync_end = 480 + 30 + 10,	/* + hsync-len */
+	.htotal = 480 + 30 + 10 + 30,	/* + HBP */
 
-	.vdisplay = 480,
-	.vsync_start = 480 + 30,	/* vactive + VFP */
-	.vsync_end = 480 + 30 + 10,	/* + vsync-len */
-	.vtotal = 480 + 30 + 10 + 30,	/* + VBP */
+	.vdisplay = 800,
+	.vsync_start = 800 + 15,	/* vactive + VFP */
+	.vsync_end = 800 + 15 + 4,	/* + vsync-len */
+	.vtotal = 800 + 15 + 4 + 12,	/* + VBP */
 
-	.width_mm = 86,
-	.height_mm = 52,
+	.width_mm = 52,
+	.height_mm = 86,
 
 	.type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED,
 };
