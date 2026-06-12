@@ -1,0 +1,63 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Device tree overlay for P040B019-MIPI-CTP touch controller (FT6336U)
+ * Using hardware I2C (BSC0 via i2c0mux, GPIO44/45)
+ *
+ * Touch IC: FT6336U (compatible with edt-ft5x06 driver)
+ * I2C: BSC0 mux → i2c_csi_dsi channel (GPIO44 SDA, GPIO45 SCL)
+ * INT: GPIO4, RST: GPIO27
+ * I2C address: 0x38
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2711", "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c0if>;		/* BSC0 controller */
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c0mux>;		/* i2c0 mux */
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c_csi_dsi>;	/* mux channel 1 = GPIO44/45 */
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			touchscreen: edt-ft5x06@38 {
+				compatible = "edt,edt-ft5406", "edt,edt-ft5x06";
+				reg = <0x38>;
+
+				/* INT: GPIO4, falling-edge triggered */
+				interrupt-parent = <&gpio>;
+				interrupts = <4 2>;
+
+				/* RST: GPIO27, active low */
+				reset-gpios = <&gpio 27 1>;
+
+				touchscreen-size-x = <480>;
+				touchscreen-size-y = <800>;
+			};
+		};
+	};
+
+	__overrides__ {
+		int_pin  = <&touchscreen>, "interrupts:0";
+		rst_pin  = <&touchscreen>, "reset-gpios:4";
+		addr     = <&touchscreen>, "reg:0";
+		inv_x    = <&touchscreen>, "touchscreen-inverted-x?";
+		inv_y    = <&touchscreen>, "touchscreen-inverted-y?";
+		swap_xy  = <&touchscreen>, "touchscreen-swapped-x-y?";
+	};
+};

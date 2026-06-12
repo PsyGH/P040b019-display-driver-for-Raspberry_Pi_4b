@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# P040B019 MIPI DSI + FT6336U Touch driver installer
+# Works on Raspberry Pi 4B with any Linux >= 4.11
+# Usage: sudo ./install.sh
+set -e
+
+cd "$(dirname "$0")/.."
+PROJECT_DIR="$(pwd)"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
+info()  { echo -e "${CYAN}==>${NC} $*"; }
+ok()    { echo -e "${GREEN}  ✓${NC} $*"; }
+err()   { echo -e "${RED}  ✗${NC} $*"; exit 1; }
+
+[ "$(id -u)" -eq 0 ] || err "need root — run: sudo ./install.sh"
+
+# ── 1. Build kernel module ──
+info "1/4 编译内核模块"
+if [ ! -d /lib/modules/$(uname -r)/build ]; then
+  info "  安装 kernel headers..."
+  apt-get update -qq && apt-get install -y linux-headers-$(uname -r) build-essential
+fi
+cd "$PROJECT_DIR/src"
+make clean 2>/dev/null || true
+make || err "编译失败，检查内核版本兼容性"
+ok "panel-rpi-dsi-display.ko"
+
+# ── 2. Install module ──
+info "2/4 安装模块"
+MODDIR=/lib/modules/$(uname -r)/kernel/drivers/gpu/drm/panel
+mkdir -p "$MODDIR"
+cp panel-rpi-dsi-display.ko "$MODDIR/"
+depmod -a
+# Auto-load on boot
+echo "panel-rpi-dsi-display" > /etc/modules-load.d/p040b019.conf
+ok "模块已安装并配置开机自动加载"
+
+# ── 3. Deploy DT overlays ──
+info "3/4 部署设备树"
+KINC=$(find /lib/modules/$(uname -r)/build/include -maxdepth 0 2>/dev/null || echo "")
+[ -z "$KINC" ] && KINC="/usr/src/linux-headers-$(uname -r)/include"
+cd "$PROJECT_DIR/overlay"
+
+# Compile DTBOs
+for name in p040b019-display st7701p-touch; do
+  cpp -nostdinc -undef -x assembler-with-cpp -I "$KINC" \
+    "${name}.dts" > "/tmp/${name}.dts.preprocessed"
+  dtc -@ -I dts -O dtb -o "/tmp/${name}.dtbo" "/tmp/${name}.dts.preprocessed"
+  ok "编译 ${name}.dtbo"
+done
+
+# Merge into base DTB
+FIRMWARE_DIR=""
+[ -d /boot/firmware ] && FIRMWARE_DIR=/boot/firmware
+[ -d /boot ] && [ ! -d /boot/firmware ] && FIRMWARE_DIR=/boot
+DTB="bcm2711-rpi-4-b.dtb"
+
+if [ -f "$FIRMWARE_DIR/$DTB" ]; then
+  # Backup original
+  if [ ! -f "$FIRMWARE_DIR/${DTB}.orig" ]; then
+    cp "$FIRMWARE_DIR/$DTB" "$FIRMWARE_DIR/${DTB}.orig"
+    ok "备份原始 DTB → ${DTB}.orig"
+  fi
+  # Merge overlays
+  fdtoverlay -i "$FIRMWARE_DIR/${DTB}.orig" -o "$FIRMWARE_DIR/$DTB" \
+    /tmp/p040b019-display.dtbo /tmp/st7701p-touch.dtbo
+  ok "DT overlay 已合并到 ${DTB}"
+else
+  info "未找到 ${DTB}, DTBO 已编译到 /tmp/, 请手动合并"
+fi
+
+# ── 4. Verify ──
+info "4/4 验证"
+if lsmod | grep -q panel_rpi_dsi_display; then
+  ok "模块已加载"
+else
+  modprobe panel-rpi-dsi-display 2>/dev/null && ok "模块加载成功" || info "模块将在重启后加载"
+fi
+
+echo ""
+echo -e "${GREEN}安装完成！${NC}"
+echo "  重启使 DTB 生效: sudo reboot"
+echo "  检查屏幕: dmesg | grep rpi_dsi"
+echo "  背光: echo 128 > /sys/class/backlight/backlight/brightness"
